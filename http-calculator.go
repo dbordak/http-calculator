@@ -29,6 +29,7 @@ type Item struct {
 
 const expiry = time.Minute
 
+// Parses the x and y values out of the query string.
 func argHandler(q url.Values) (float64, float64, error) {
 	xs := q.Get("x")
 	ys := q.Get("y")
@@ -49,13 +50,15 @@ func argHandler(q url.Values) (float64, float64, error) {
 	return x, y, nil
 }
 
+// Closure that generates an http response function using the given math
+// function.
 func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		action := r.URL.Path[1:]
 
 		// Create a unique key based on method, x, and y. Can't just use the URL
-		// from the request since x and y can be in any order.
+		// string from the request since x and y can be in either order.
 		rkey := r.URL.Query().Get("x") + action + r.URL.Query().Get("y")
 		cached, present := cache[rkey]
 		if present && cached.Expiry > time.Now().UnixNano() {
@@ -63,6 +66,7 @@ func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWri
 			return
 		}
 
+		// Create a new response when it's not in the cache (or expired)
 		x, y, err := argHandler(r.URL.Query())
 		m := Response{action, x, y, 0, false, ""}
 		if err != nil {
@@ -73,6 +77,7 @@ func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWri
 			json.NewEncoder(w).Encode(m)
 		}
 
+		// Add response to the cache
 		m.Cached = true
 		item := Item{m, time.Now().Add(expiry).UnixNano()}
 		cache[rkey] = item
