@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -9,10 +10,19 @@ import (
 	"strconv"
 )
 
+type Response struct {
+	Action string `json:"action"`
+	X      int    `json:"x"`
+	Y      int    `json:"y"`
+	Answer int    `json:"answer"`
+	Cached bool   `json:"cached"`
+	Error  string `json:"error,omitempty"`
+}
+
 func argHandler(q url.Values) (int, int, error) {
 	xs := q.Get("x")
 	ys := q.Get("y")
-	if xs == "" || ys == "" {
+	if len(xs) == 0 || len(ys) == 0 {
 		return 0, 0, errors.New("Argument Missing")
 	}
 
@@ -31,13 +41,19 @@ func argHandler(q url.Values) (int, int, error) {
 
 func main() {
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
 		x, y, err := argHandler(r.URL.Query())
 		if err != nil {
-			// TODO
+			m := Response{"add", 0, 0, 0, false, fmt.Sprintf("%s", err)}
+			json.NewEncoder(w).Encode(m)
+		} else {
+			m := Response{"add", x, y, x + y, false, ""}
+			json.NewEncoder(w).Encode(m)
 		}
-
-		fmt.Fprintf(w, "x+y=%d", x+y)
 	})
+
+	// subtract, multiply, divide
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
