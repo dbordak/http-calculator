@@ -49,10 +49,14 @@ func argHandler(q url.Values) (float64, float64, error) {
 	return x, y, nil
 }
 
-func mathHandler(name string, cache map[string]Item, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
+func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		rkey := r.URL.Query().Get("x") + name + r.URL.Query().Get("y")
+		action := r.URL.Path[1:]
+
+		// Create a unique key based on method, x, and y. Can't just use the URL
+		// from the request since x and y can be in any order.
+		rkey := r.URL.Query().Get("x") + action + r.URL.Query().Get("y")
 		cached, present := cache[rkey]
 		if present && cached.Expiry > time.Now().UnixNano() {
 			json.NewEncoder(w).Encode(cached.Response)
@@ -60,7 +64,7 @@ func mathHandler(name string, cache map[string]Item, mathFunc MathFunc) func(htt
 		}
 
 		x, y, err := argHandler(r.URL.Query())
-		m := Response{name, x, y, 0, false, ""}
+		m := Response{action, x, y, 0, false, ""}
 		if err != nil {
 			m.Error = fmt.Sprintf("%s", err)
 			json.NewEncoder(w).Encode(m)
@@ -78,22 +82,22 @@ func mathHandler(name string, cache map[string]Item, mathFunc MathFunc) func(htt
 func main() {
 	cache := make(map[string]Item)
 
-	http.HandleFunc("/add", mathHandler("add", cache,
+	http.HandleFunc("/add", mathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x + y
 		}))
 
-	http.HandleFunc("/subtract", mathHandler("subtract", cache,
+	http.HandleFunc("/subtract", mathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x - y
 		}))
 
-	http.HandleFunc("/multiply", mathHandler("multiply", cache,
+	http.HandleFunc("/multiply", mathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x * y
 		}))
 
-	http.HandleFunc("/divide", mathHandler("divide", cache,
+	http.HandleFunc("/divide", mathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x / y
 		}))
