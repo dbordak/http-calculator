@@ -11,27 +11,29 @@ import (
 )
 
 type Response struct {
-	Action string `json:"action"`
-	X      int    `json:"x"`
-	Y      int    `json:"y"`
-	Answer int    `json:"answer"`
-	Cached bool   `json:"cached"`
-	Error  string `json:"error,omitempty"`
+	Action string  `json:"action"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Answer float64 `json:"answer"`
+	Cached bool    `json:"cached"`
+	Error  string  `json:"error,omitempty"`
 }
 
-func argHandler(q url.Values) (int, int, error) {
+type MathFunc func(float64, float64) float64
+
+func argHandler(q url.Values) (float64, float64, error) {
 	xs := q.Get("x")
 	ys := q.Get("y")
 	if len(xs) == 0 || len(ys) == 0 {
 		return 0, 0, errors.New("Argument Missing")
 	}
 
-	x, err := strconv.Atoi(xs)
+	x, err := strconv.ParseFloat(xs, 64)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	y, err := strconv.Atoi(ys)
+	y, err := strconv.ParseFloat(ys, 64)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -39,21 +41,41 @@ func argHandler(q url.Values) (int, int, error) {
 	return x, y, nil
 }
 
-func main() {
-	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
+func mathHandler(name string, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		x, y, err := argHandler(r.URL.Query())
 		if err != nil {
-			m := Response{"add", 0, 0, 0, false, fmt.Sprintf("%s", err)}
+			m := Response{name, 0, 0, 0, false, fmt.Sprintf("%s", err)}
 			json.NewEncoder(w).Encode(m)
 		} else {
-			m := Response{"add", x, y, x + y, false, ""}
+			m := Response{name, x, y, mathFunc(x, y), false, ""}
 			json.NewEncoder(w).Encode(m)
 		}
-	})
+	}
+}
 
-	// subtract, multiply, divide
+func main() {
+	http.HandleFunc("/add", mathHandler("add",
+		func(x float64, y float64) float64 {
+			return x + y
+		}))
+
+	http.HandleFunc("/subtract", mathHandler("subtract",
+		func(x float64, y float64) float64 {
+			return x - y
+		}))
+
+	http.HandleFunc("/multiply", mathHandler("multiply",
+		func(x float64, y float64) float64 {
+			return x * y
+		}))
+
+	http.HandleFunc("/divide", mathHandler("divide",
+		func(x float64, y float64) float64 {
+			return x / y
+		}))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
