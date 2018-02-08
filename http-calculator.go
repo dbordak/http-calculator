@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 type Response struct {
@@ -20,6 +21,13 @@ type Response struct {
 }
 
 type MathFunc func(float64, float64) float64
+
+type Item struct {
+	Response Response
+	Expiry   int64
+}
+
+const expiry = time.Minute
 
 func argHandler(q url.Values) (float64, float64, error) {
 	xs := q.Get("x")
@@ -41,38 +49,51 @@ func argHandler(q url.Values) (float64, float64, error) {
 	return x, y, nil
 }
 
-func mathHandler(name string, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
+func mathHandler(name string, cache map[string]Item, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		rkey := r.URL.Query().Get("x") + name + r.URL.Query().Get("y")
+		cached, present := cache[rkey]
+		if present && cached.Expiry > time.Now().UnixNano() {
+			json.NewEncoder(w).Encode(cached.Response)
+			return
+		}
 
 		x, y, err := argHandler(r.URL.Query())
+		m := Response{name, x, y, 0, false, ""}
 		if err != nil {
-			m := Response{name, 0, 0, 0, false, fmt.Sprintf("%s", err)}
+			m.Error = fmt.Sprintf("%s", err)
 			json.NewEncoder(w).Encode(m)
 		} else {
-			m := Response{name, x, y, mathFunc(x, y), false, ""}
+			m.Answer = mathFunc(x, y)
 			json.NewEncoder(w).Encode(m)
 		}
+
+		m.Cached = true
+		item := Item{m, time.Now().Add(expiry).UnixNano()}
+		cache[rkey] = item
 	}
 }
 
 func main() {
-	http.HandleFunc("/add", mathHandler("add",
+	cache := make(map[string]Item)
+
+	http.HandleFunc("/add", mathHandler("add", cache,
 		func(x float64, y float64) float64 {
 			return x + y
 		}))
 
-	http.HandleFunc("/subtract", mathHandler("subtract",
+	http.HandleFunc("/subtract", mathHandler("subtract", cache,
 		func(x float64, y float64) float64 {
 			return x - y
 		}))
 
-	http.HandleFunc("/multiply", mathHandler("multiply",
+	http.HandleFunc("/multiply", mathHandler("multiply", cache,
 		func(x float64, y float64) float64 {
 			return x * y
 		}))
 
-	http.HandleFunc("/divide", mathHandler("divide",
+	http.HandleFunc("/divide", mathHandler("divide", cache,
 		func(x float64, y float64) float64 {
 			return x / y
 		}))
