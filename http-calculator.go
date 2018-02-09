@@ -53,7 +53,7 @@ func argHandler(q url.Values) (float64, float64, error) {
 
 // Closure that generates an http response function using the given math
 // function.
-func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
+func MathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		action := r.URL.Path[1:]
@@ -91,22 +91,22 @@ func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWri
 func main() {
 	cache := make(map[string]Item)
 
-	http.HandleFunc("/add", mathHandler(cache,
+	http.HandleFunc("/add", MathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x + y
 		}))
 
-	http.HandleFunc("/subtract", mathHandler(cache,
+	http.HandleFunc("/subtract", MathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x - y
 		}))
 
-	http.HandleFunc("/multiply", mathHandler(cache,
+	http.HandleFunc("/multiply", MathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x * y
 		}))
 
-	http.HandleFunc("/divide", mathHandler(cache,
+	http.HandleFunc("/divide", MathHandler(cache,
 		func(x float64, y float64) float64 {
 			return x / y
 		}))
