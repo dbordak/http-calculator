@@ -63,6 +63,9 @@ func mathHandler(cache map[string]Item, mathFunc MathFunc) func(http.ResponseWri
 		cached, present := cache[rkey]
 		if present && cached.Expiry > time.Now().UnixNano() {
 			json.NewEncoder(w).Encode(cached.Response)
+
+			// Update expiry
+			cache[rkey] = Item{cached.Response, time.Now().Add(expiry).UnixNano()}
 			return
 		}
 
